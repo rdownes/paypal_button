@@ -1,0 +1,905 @@
+<?php
+/**
+ * @file - module code for creating PayPal buttons on the site.
+ */
+
+/* This required file comes from phpclasses.org under the GNU licence and has
+ * been edited since to fix bugs and add some functionality.
+ */
+require 'PayPalSimple/PaypalSimpleClass.php';
+
+/**
+ *
+ * Constants used for the setting Live or Sandbox?
+ */
+define('PAYPAL_BUTTON_LIVE', 0);
+define('PAYPAL_BUTTON_SANDBOX', 1);
+/**
+ * Constants for default URLs
+ */
+define('PAYPAL_DEFAULT_COMPLETION_URL', 'paypal_completion');
+define('PAYPAL_DEFAULT_CANCELLATION_URL', 'paypal_cancellation');
+define('PAYPAL_DEFAULT_CONTINUE_URL', 'paypal_continue');
+/**
+ * Constants for the button type values
+ */
+define('PAYPAL_BUTTON_TYPE_BUY_NOW', 0);
+define('PAYPAL_BUTTON_TYPE_ADD_TO_CART', 1);
+define('PAYPAL_BUTTON_TYPE_DONATION', 2);
+/**
+ * Constants for PayPal's URLs
+ */
+define('PAYPAL_BUTTON_PAYPAL_LIVE_URL', 'https://www.paypal.com/cgi-bin/webscr');
+define('PAYPAL_BUTTON_PAYPAL_SANDBOX_URL', 'https://www.sandbox.paypal.com/cgi-bin/webscr');
+/**
+ * Other contants for PayPalSimpleClass
+ *
+ */
+define('PAYPAL_BUTTON_LARGE_BUTTON', 0);
+define('PAYPAL_BUTTON_SMALL_BUTTON', 1);
+define('PAYPAL_BUTTON_TABLE_DRAWMODE', 0);
+define('PAYPAL_BUTTON_DIV_DRAWMODE', 1);
+//define('PAYPALSIMPLECLASS_DEFAULT_TAX_RATE', '20.000');
+
+/* Constants for NULL replacement in the numeric elements allowing NULL */
+define('PAYPAL_BUTTON_SHIPPING_NULL', '-1');
+define('PAYPAL_BUTTON_TAX_RATE_NULL', '-1');
+define('PAYPAL_BUTTON_PRICE_NULL', '0');
+
+/*
+ * Implmenents hook_menu
+ *
+ * This just adds a configuration form for the site's PayPal accout and remevent URLs.
+ */
+function paypal_button_menu() {
+  $items['admin/config/services/paypal_button'] = array(
+    'title' => t('PayPal Button Settings'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('paypal_button_config_form'),
+    'access arguments' => array('paypal_button_administer_paypal_button'),
+    'file' => 'includes\paypal_button.settings.inc',
+    'type' => MENU_NORMAL_ITEM,
+    );
+
+  return $items;
+}
+
+/**
+ * Implments hook_help
+ *
+ * Displays help and module information.
+ *
+ * @param path
+ *   Which path of the site we're using to display help
+ * @param arg
+ *   Array that holds the current path as returned from arg() function
+ */
+function paypal_button_help($path, $arg) {
+  switch ($path) {
+    case "admin/help#paypal_button":
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t("Implements simple PayPal buttons") . '</p>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      return $output;
+      break;
+  }
+}
+
+/**
+ * Implmenents hook_permission
+ *
+ * Returns array keyed by permission machine name.
+ */
+function paypal_button_permission() {
+  $permissions['paypal_button_administer_paypal_button'] = array(
+    'title' => t('Administer PayPal Button settings'),
+    'description' => t('Set the live and sandbox PayPal accounts as well as switch between using live and sandbox PayPal'),
+    'restrict access' => TRUE,
+    );
+  return $permissions;
+}
+
+/**
+ * Implements hook_field_info
+ *
+ */
+function paypal_button_field_info() {
+  return array(
+    'paypal_button' => array(
+      'label' => t('PayPal button'),
+      'description' => t('This form defines a PayPal button'),
+      'default_widget' => 'paypal_button_paypal_button',
+      'default formatter' => 'paypal_button_paypal_button',
+      'settings' => array(),
+      'instance settings' => array(),
+      ),
+    );
+}
+
+// If settings and instance settings are introduced the functions for the forms should be here
+
+/**
+ * Implements hook_field_validate().
+ *
+ * Possible error codes:
+ * - 'price_invalid': The price is zero or negative
+ */
+function paypal_button_field_validate($obj_type, $object, $field, $instance, $langcode, $items, &$errors) {
+  $error = FALSE;
+  $required = $instance['required'];
+  foreach ($items as $delta => $item) {
+    if (!empty($item['price']) && 
+        ($item['price'] <= 0 || !is_numeric($item['price']))) {
+      $message = t('Price must be a number and not be zero or negative');
+      $errors[$field['field_name']][$langcode][$delta][] = array(
+        'error' => 'price_invalid',
+        'message' => $instance['label'] . ': ' . $message,
+      );
+    }
+    $shipping = trim($item['shipping']);
+    if ( !empty($shipping) && ((float) $shipping < 0 || !is_numeric($shipping))) {
+      $message = t('Shipping must be a number and not be negative');
+      $errors[$field['field_name']][$langcode][$delta][] = array(
+        'error' => 'shipping_invalid',
+        'message' => $instance['label'] . ': ' . $message,
+      );
+    }
+    $tax_rate = isset($item['tax_rate']) ? trim($item['tax_rate']) : variable_get('paypal_button_default_tax_rate', PAYPALSIMPLECLASS_DEFAULT_TAX_RATE);
+    if ( !empty($tax_rate) &&
+        ( (float) $tax_rate < 0 || (float) $tax_rate > 100 || 
+          !is_numeric($tax_rate))) {
+      $message = t('Tax rate must be a number and not be negative and between 0 and 100');
+      $errors[$field['field_name']][$langcode][$delta][] = array(
+        'error' => 'tax_rate_invalid',
+        'message' => $instance['label'] . ': ' . $message,
+      );
+    }
+    if ($item['option_toggle']) {
+      for ($option_delta = 0, $options = FALSE, $options_prices = NULL, 
+          $last_option = NULL, $error = FALSE; 
+          $option_delta < 10 ; $option_delta++) {
+        $option_no = $option_delta + 1;
+        if (!empty($item['option_' . $option_delta . '_text'])) {
+          if ($options && $last_option != NULL ) {
+            // Error because previous option is null
+            $message = t('The options must be contiguous');
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+              'error' => 'options_not_continuous_' . $option_delta,
+              'message' => $instance['label'] . ': ' . $message,
+              );
+            $error = TRUE;
+          }
+          $options = TRUE;
+          $this_option_price = $item['option_' . $option_delta . '_price'];
+          if (!empty($this_option_price)) {
+            if ($last_option == NULL) {
+              $options_prices = TRUE;
+              if ($this_option_price <= 0 || !is_numeric($this_option_price)) {
+                $message = t('Option ' .$option_no . 
+                  ' price must be a number and not be zero or negative');
+                $error_code = 'option_' . $option_delta . '_price_invalid';
+                $errors[$field['field_name']][$langcode][$delta][] = array(
+                  'error' => $error_code,
+                  'message' => $instance['label'] . ': ' . $message,
+                );
+                $error = TRUE;
+              }
+            } 
+          } elseif ($options_prices != NULL && $options_prices) {
+            // Error because prices must be set for all options or none
+            $message = t('Set all option prices or none');
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+                  'error' => 'option_prices_all_or_none_' . $option_delta,
+                  'message' => $instance['label'] . ': ' . $message,
+                );
+            $error = TRUE;
+          }
+        } elseif ($options && $last_option == NULL) {
+          // First blank option text and thus the last option was the previous one
+          $last_option = $option_delta - 1;
+          if (!empty($item['option_' . $option_delta . '_price'])) {
+            // Should not have a price with no label
+            $option_no = $option_delta + 1;
+            $message = t('Set the label for option ' . $option_no);
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+                  'error' => 'option_prices_no_label_' . $option_delta,
+                  'message' => $instance['label'] . ': ' . $message,
+                );
+            $error = TRUE;
+          }
+        } elseif (!empty($item['option_' . $option_delta . '_price'])) {
+          // Should not have a price with no label
+          $option_no = $option_delta + 1;
+          $message = t('Set the label for option ' . $option_no);
+          $errors[$field['field_name']][$langcode][$delta][] = array(
+                'error' => 'option_prices_no_label_' . $option_delta,
+                'message' => $instance['label'] . ': ' . $message,
+              );
+          $error = TRUE;
+        }
+      }
+    }
+    if (!$error && $item['option_toggle']) {
+      if (($required || $item['product_name']) && 
+          empty($item['price']) && 
+          ($options_prices == NULL || !$options_prices)) {
+        // Error because no overall price or option prices
+        $message = t('Either the overall price must be set or prices for all options');
+        $errors[$field['field_name']][$langcode][$delta][] = array(
+                'error' => 'master_price_or_option_prices',
+                'message' => $instance['label'] . ': ' . $message,
+              );
+      } elseif (!empty($item['price']) && $options_prices != NULL 
+        && $options_prices) {
+        // Error because both overall and option prices set
+        $message = t('Do not set both overall and option prices');
+        $errors[$field['field_name']][$langcode][$delta][] = array(
+                'error' => 'master_price_or_option_prices',
+                'message' => $instance['label'] . ': ' . $message,
+              );
+      }  
+    }
+  }
+}
+
+/**
+ * Implements hook_field_widget_error().
+ */
+function paypal_button_field_widget_error($element, $error, $form, &$form_state) {
+  switch ($error['error']) {
+    case 'price_invalid':
+      form_error($element['price'], $error['message']);
+      break;
+    case 'shipping_invalid':
+      form_error($element['shippping'], $error['message']);
+      break;
+    case 'tax_rate_invalid':
+      form_error($element['tax_rate'], $error['message']);
+      break;
+    case 'options_not_continuous_0':
+      form_error($element['option_0_text'], $error['message']);
+      break;
+    case 'options_not_continuous_1':
+      form_error($element['option_1_text'], $error['message']);
+      break;
+    case 'options_not_continuous_2':
+      form_error($element['option_2_text'], $error['message']);
+      break;
+    case 'options_not_continuous_3':
+      form_error($element['option_3_text'], $error['message']);
+      break;
+    case 'options_not_continuous_4':
+      form_error($element['option_4_text'], $error['message']);
+      break;
+    case 'options_not_continuous_5':
+      form_error($element['option_5_text'], $error['message']);
+      break;
+    case 'options_not_continuous_6':
+      form_error($element['option_6_text'], $error['message']);
+      break;
+    case 'options_not_continuous_7':
+      form_error($element['option_7_text'], $error['message']);
+      break;
+    case 'options_not_continuous_8':
+      form_error($element['option_8_text'], $error['message']);
+      break;
+    case 'options_not_continuous_9':
+      form_error($element['option_9_text'], $error['message']);
+      break;
+    case 'option_0_price_invalid':
+      form_error($element['option_0_price'], $error['message']);
+      break;
+    case 'option_1_price_invalid':
+      form_error($element['option_1_price'], $error['message']);
+      break;
+    case 'option_2_price_invalid':
+      form_error($element['option_2_price'], $error['message']);
+      break;
+    case 'option_3_price_invalid':
+      form_error($element['option_3_price'], $error['message']);
+      break;
+    case 'option_4_price_invalid':
+      form_error($element['option_4_price'], $error['message']);
+      break;
+    case 'option_5_price_invalid':
+      form_error($element['option_5_price'], $error['message']);
+      break;
+    case 'option_6_price_invalid':
+      form_error($element['option_6_price'], $error['message']);
+      break;
+    case 'option_7_price_invalid':
+      form_error($element['option_7_price'], $error['message']);
+      break;
+    case 'option_8_price_invalid':
+      form_error($element['option_8_price'], $error['message']);
+      break;
+    case 'option_9_price_invalid':
+      form_error($element['option_9_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_0':
+      form_error($element['option_0_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_1':
+      form_error($element['option_1_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_2':
+      form_error($element['option_2_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_3':
+      form_error($element['option_3_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_4':
+      form_error($element['option_4_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_5':
+      form_error($element['option_5_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_6':
+      form_error($element['option_6_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_7':
+      form_error($element['option_7_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_8':
+      form_error($element['option_8_price'], $error['message']);
+      break;
+    case 'option_prices_all_or_none_9':
+      form_error($element['option_9_price'], $error['message']);
+      break;
+    case 'option_prices_no_label_0':
+      form_error($element['option_0_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_1':
+      form_error($element['option_1_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_2':
+      form_error($element['option_2_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_3':
+      form_error($element['option_3_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_4':
+      form_error($element['option_4_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_5':
+      form_error($element['option_5_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_6':
+      form_error($element['option_6_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_7':
+      form_error($element['option_7_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_8':
+      form_error($element['option_8_text'], $error['message']);
+      break;
+    case 'option_prices_no_label_9':
+      form_error($element['option_9_text'], $error['message']);
+      break;
+    case 'master_price_or_option_prices':
+      form_error($element, $error['message']);
+      break;
+  }
+}
+
+/**
+ * Implements hook_content_is_empty().
+ */
+function paypal_button_field_is_empty($item, $field) {
+  if (empty($item['product_name'])) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_field_presave().
+ *
+ * This is purely to ensure that the blank number fields elements that
+ * are allowed to be null, are converted to a number allocated to mean NULL.
+ * This is because the core of Drupal, specifically field_sql_storage sub module
+ * of the field module does not cope with this.
+ */
+function paypal_button_field_presave($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  foreach ($items as $delta => $item) {
+    if (empty($item['price'])) {
+      $items[$delta]['price'] = PAYPAL_BUTTON_PRICE_NULL;
+    }
+    if (empty($item['shipping'])) {
+      $items[$delta]['shipping'] = PAYPAL_BUTTON_SHIPPING_NULL;
+    }
+    if (empty($item['tax_rate'])) {
+      $items[$delta]['tax_rate'] = PAYPAL_BUTTON_TAX_RATE_NULL;
+    }
+    if (!$item['option_toggle']) $items[$delta]['option_label'] = '';
+    for ($option_delta = 0; $option_delta < 10; $option_delta++) {
+      if (empty($item['option_' . $option_delta . '_price']) ||
+         !$item['option_toggle']) {
+        $items[$delta]['option_' . $option_delta . '_price'] = 
+         PAYPAL_BUTTON_PRICE_NULL;
+      }
+      if (!$item['option_toggle']) {
+        $items[$delta]['option_' . $option_delta . '_text'] = '';
+      }
+    }
+  }
+}
+/**
+ * Implements hook_field_formatter_info().
+ *
+ */
+function paypal_button_field_formatter_info() {
+  $formats = array(
+    'paypal_button_paypal_button' => array(
+      'label' => t('Default PayPal Add to Cart button form displayed'),
+      'description' => t('Display the PayPal Add to Cart form.'),
+      'field types' => array('paypal_button'),
+    ),
+  );
+  return $formats;
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ *
+ * Display an Add to Cart PayPal form using GoPayPal library
+ *
+ * TODO: Find out what happens if form name is not overridden
+ */
+function paypal_button_field_formatter_view($object_type, $object, $field, $instance, $langcode, $items, $display) {
+
+  global $base_root; // Drupal's host root name for URLs
+
+  $module_path = drupal_get_path('module' , 'paypal_button');
+  drupal_add_css($module_path . '/css/paypal_button.css');
+
+  $element = array();
+
+  // Set up basics of all PayPal add to Cart button forms
+//  PaypalSimpleClass::singleton("you@yourdomain.com","");
+  //$paypal = new GoPayPal(ADD_TO_CART);
+  if (variable_get('paypal_button_live_or_sandbox', PAYPAL_BUTTON_LIVE) == PAYPAL_BUTTON_SANDBOX) {
+      PaypalSimpleClass::singleton(variable_get('paypal_button_sandbox_paypal_email', ''),"");
+      PaypalSimpleClass::setSandbox(TRUE);
+//      PaypalSimpleClass::setActionUrl(PAYPAL_BUTTON_PAYPAL_SANDBOX_URL);
+//    $paypal->sandbox = TRUE;
+//    $paypal->set(PAYPAL_EMAIL, variable_get('paypal_button_sandbox_paypal_email', ''));
+  } else {
+      PaypalSimpleClass::singleton(variable_get('paypal_button_live_paypal_email', ''),"");
+      PaypalSimpleClass::setSandbox(FALSE);
+//      PaypalSimpleClass::setActionUrl(PAYPAL_BUTTON_PAYPAL_LIVE_URL);
+//    $paypal->sandbox = FALSE;
+//    $paypal->set(PAYPAL_EMAIL, variable_get('paypal_button_live_paypal_email', ''));
+  }
+//dd(PaypalSimpleClass, 'PayPalSimpleClass');
+  PayPalSimpleClass::setBtnSize(PAYPAL_BUTTON_SMALL_BUTTON);
+  PayPalSimpleClass::setDrawMode(PAYPAL_BUTTON_DIV_DRAWMODE);
+  PayPalSimpleClass::setCurrency('GBP', '£');
+//  PayPalSimpleClass::setTaxRate(0.0);
+  PayPalSimpleClass::setTarget('paypal');
+  PayPalSimpleClass::setErrorReporting(TRUE);
+//  $paypal->openInNewWindow = TRUE;
+//  $paypal->set(CURRENCY, 'GBP');
+//  $paypal->set(COUNTRY, 'GB');
+  $payment_completion_url = $instance['widget']['settings']['payment_completion_url'];
+  if (empty($payment_completion_url)) {
+    $payment_completion_url = variable_get('paypal_button_default_payment_completion_url', 
+      PAYPAL_DEFAULT_COMPLETION_URL);
+  }
+  $payment_cancellation_url = $instance['widget']['settings']['payment_cancellation_url'];
+  if (empty($payment_cancellation_url)) {
+    $payment_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url',
+      PAYPAL_DEFAULT_CANCELLATION_URL);
+  }
+  $payment_continue_url = $instance['widget']['settings']['continue_url'];
+  if (empty($payment_continue_url)) {
+    $payment_continue_url = variable_get('paypal_button_default_continue_url',
+      $_SERVER['REQUEST_URI']);
+    if (empty($payment_continue_url)) {
+      $payment_continue_url = $_SERVER['REQUEST_URI'];
+    }
+  }
+  $payment_continue_url = url($payment_continue_url, array('absolute' => TRUE,));
+  PayPalSimpleClass::setShoppingUrl($payment_continue_url);
+  $payment_completion_url = url($payment_completion_url, array('absolute' => TRUE,));
+  PayPalSimpleClass::setReturnUrl($payment_completion_url);
+  $payment_cancellation_url = url($payment_cancellation_url, array('absolute' => TRUE,));
+  PayPalSimpleClass::setCancelUrl($payment_cancellation_url);
+  //$paypal->set(PAYMENT_COMPLETION_URL, $payment_completion_url);
+  //$paypal->set(PAYMENT_CANCELLED_URL, $payment_cancellation_url);
+  //$paypal->set(CONTINUE_SHOPPING_URL, $payment_continue_url); 
+  PayPalSimpleClass::textValue('Add any special instructions');
+  //$paypal->set(PROMPT_FOR_NOTE, NOTE_REQUESTED);
+  //$paypal->set(NOTE_LABEL, t('Add any special instructions'));
+  //$paypal->set(RETURN_BUTTON_LABEL, 'Return to our site'); # caption override for "Return to Merchant" button
+  $default_tax_rate = variable_get('paypal_button_default_tax_rate', PAYPALSIMPLECLASS_DEFAULT_TAX_RATE);
+  $tax_option = variable_get('paypal_button_tax_option', FALSE);
+
+  switch ($display['type']) {
+    case 'paypal_button_paypal_button':
+
+      foreach ($items as $delta => $item) {
+        $price = $item['price'] == PAYPAL_BUTTON_PRICE_NULL ? '0' : 
+          $item['price'];
+        $shipping = $item['shipping'] == PAYPAL_BUTTON_SHIPPING_NULL ? '0' : 
+          $item['shipping'];
+        if ($tax_option) {
+          $tax_rate = $item['tax_rate'] == PAYPAL_BUTTON_TAX_RATE_NULL ? 
+            $default_tax_rate : $item['tax_rate'];
+        } else {
+          $tax_rate = $default_tax_rate;
+        }
+        PaypalSimpleClass::setTaxRate( (float) $tax_rate);
+        PayPalSimpleClass::setItem(PAYPAL_BUTTON_TYPE_ADD_TO_CART, 
+          $item['product_name'], '', (float) $price, (float) $shipping, 
+            $payment_completion_url);
+        //$paypal->clearItems(); // Clear items produced for other buttons in this loop
+        //$line_item = new GoPayPalCartItem();
+        //$line_item->set(PRODUCT_NAME, $item['product_name']);
+        //$line_item->set(PRICE, $item['price']);
+        //$line_item->set(ORDER_QUANTITY, 1);
+        //$paypal->addItem($line_item);
+        // Add an option if one has been selected
+        if (!empty($item['option_label'])) {
+          PaypalSimpleClass::opt1Name($item['option_label']);
+        }
+        for ($option_delta = 0, $last_option = FALSE; 
+          $option_delta < 10 && !$last_option; 
+          $option_delta++) {
+          if (!empty($item['option_' . $option_delta . '_text'])) {
+            if ($item['option_' . $option_delta . '_price'] !=
+              PAYPAL_BUTTON_PRICE_NULL) {
+              PaypalSimpleClass::opt1Value(
+                $item['option_' . $option_delta . '_text'],
+                $item['option_' . $option_delta . '_price']
+                );
+            } else {
+              PaypalSimpleClass::opt1Value($item['option_' . $option_delta . '_text']);
+            }
+          } else {
+            $last_option = TRUE;
+          }
+        }
+        $output = PayPalSimpleClass::getItem();
+        //$output = $paypal->html();
+        $prefix = '<div class="paypal-button-label">' . $item['button_label'] . ' </div>';
+        $element[$delta] = array(
+          '#type' => 'markup',
+          '#prefix' => $prefix,
+          '#markup' => $output,
+          );
+      }
+      break;
+  };
+  return $element;
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function paypal_button_field_widget_info() {
+  return array(
+    'paypal_button_paypal_button' => array(
+      'label' => t('PayPal Button'),
+      'description' => t('A button for making PayPal payments'),
+      'field types' => array('paypal_button'),
+      'settings' => array(
+        'payment_completion_url' => '',
+        'payment_cancellation_url' => '',
+        'continue_url' => '',
+        'tax_option' => FALSE,
+        'default_tax_rate' => '',
+        ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_settings_form().
+ */
+function paypal_button_field_widget_settings_form($field, $instance) {
+  $widget = $instance['widget'];
+  $settings = $widget['settings'];
+
+  $site_default_completion_url = variable_get('paypal_button_default_payment_completion_url', '');
+  if (empty($site_default_completion_url)) {
+    $site_default_completion_url = PAYPAL_DEFAULT_COMPLETION_URL;
+  }
+  $form['payment_completion_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('The URL in this site to which PayPal will return on payment completion'),
+    '#description' => t('This is for this button only, blank means take the site default of \'' .
+      $site_default_completion_url . '\''),
+    '#default_value' => $settings['payment_completion_url'],
+    '#required' => FALSE,
+  );
+  $site_default_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url', '');
+  if (empty($site_default_cancellation_url)) {
+    $site_default_cancellation_url = PAYPAL_DEFAULT_CANCELLATION_URL;
+  }
+  $form['payment_cancellation_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('The URL in this site to which PayPal will return on payment cancellation'),
+    '#description' => t('This is for this button only, blank means take the site default of \'' .
+      $site_default_cancellation_url . '\''),
+    '#default_value' => $settings['payment_cancellation_url'],
+    '#required' => FALSE,
+  );
+  $site_default_continue_url = variable_get('paypal_button_default_continue_url', '');
+//  if (empty($site_default_continue_url)) {
+//    $site_default_continue_url = 'the current page';
+//  }
+  $form['continue_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('The URL in this site to which PayPal will return on \'Continue Shopping\''),
+    '#description' => t('This is for this button only, blank means take the site default of ' . ((empty($site_default_continue_url)) ? 'the current page' : ('\'' .
+      $site_default_continue_url . '\''))),
+    '#default_value' => $settings['continue_url'],
+    '#required' => FALSE,
+  );
+  return $form;
+}
+
+/**
+ * Validate function for the settings form
+ */
+function paypal_button_field_widget_settings_form_validate($form, &$form_state) {
+  $payment_completion_url = $form_state['values']['payment_completion_url'];
+  $payment_cancellation_url = $form_state['values']['payment_cancellation_url'];
+  $continue_url = $form_state['values']['continue_url'];
+
+  if (!validate_url($payment_completion_url)) {
+    form_set_error('payment_completion_url', t('The \'Payment Completion\' URL is not valid'));
+  }
+  if (!validate_url($payment_cancellation_url)) {
+    form_set_error('payment_cancellation_url', t('The \'Payment Cancellation\' URL is not valid'));
+  }
+  if (!validate_url($continue_url)) {
+    form_set_error('continue_url', t('The \'Continue Shopping\' URL is not valid'));
+  }
+
+}
+
+/**
+ * Helper function to directly validate a URL
+ *
+ * @param: $url - the URL to validate
+ *
+ * @return: boolean - TRUE if valid
+ */
+function validate_url($url) {
+  if (filter_var($url, FILTER_VALIDATE_URL)) {
+    return TRUE;
+  } else {
+    return FALSE;
+  }
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function paypal_button_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+
+  if (empty($element['#field_parents'])) {
+    $option_toggle_fieldname = $element['#field_name'] . '[' . $langcode . '][' . $delta 
+      . '][option_toggle]';
+    $product_name_fieldname = $element['#field_name'] . '[' . $langcode . '][' . $delta
+      . '][product_name]';
+  } else {
+    $option_toggle_fieldname = $element['#field_parents'][0] . '[' . 
+      $element['#field_parents'][1] . '][' . $element['#field_parents'][2] . '][' .
+      $element['#field_name'] . '][' . $langcode . '][' . $delta . '][option_toggle]';
+    $product_name_fieldname = $element['#field_parents'][0] . '[' . 
+      $element['#field_parents'][1] . '][' . $element['#field_parents'][2] . '][' .
+      $element['#field_name'] . '][' . $langcode . '][' . $delta . '][product_name]';
+  }
+  $required = $instance['required']; 
+
+  $element += array(
+    '#type' => 'fieldset',
+    );
+
+  $element['button_label'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Label'),
+    '#description' => t('This label will appear before the PayPal button and is optional'),
+    '#default_value' => isset($items[$delta]['button_label']) ? $items[$delta]['button_label'] : NULL,
+    '#size' => 127,
+    '#maxlength' => 127,
+    '#required' => FALSE,
+  );
+  $element['product_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Product name'),
+    '#description' => t('This is the text description of the product passed to PayPal'),
+    '#default_value' => isset($items[$delta]['product_name']) ? $items[$delta]['product_name'] : NULL,
+    '#size' => 127,
+    '#maxlength' => 127,
+    '#required' => $required,
+    );
+  $price = isset($items[$delta]['price']) ? $items[$delta]['price'] : '';
+  $price = $price == PAYPAL_BUTTON_PRICE_NULL ? '' : $price;
+  $element['price'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Price'),
+    '#description' => t('The price of this item to pass to PayPal.' .
+      ' Don\'t set if you set options with prices'),
+    '#default_value' => $price,
+    '#size' => 6,
+    '#maxlength' => 6,
+    '#required' => FALSE,
+    );
+  if ($required) {
+    $element['price']['#states'] = array(
+      'required' => array(
+        ':input[name="' . $option_toggle_fieldname . '"]' => array('unchecked' => TRUE,),
+        ),
+      'optional' => array(
+        ':input[name="' .$option_toggle_fieldname .'"]' => array('checked' => TRUE,),
+        ),
+      );
+  } else {
+    $element['price']['#states'] = array(
+      'required' => array(
+        ':input[name="' . $option_toggle_fieldname . '"]' => array('unchecked' => TRUE,),
+        ':input[name="' . $product_name_fieldname . '"]' => array('filled' => TRUE,),
+        ),
+      'optional' => array(
+        ':input[name="' .$option_toggle_fieldname .'"]' => array('checked' => TRUE,),
+        ),
+      );
+  }
+  $shipping = isset($items[$delta]['shipping']) ? $items[$delta]['shipping'] : '';
+  $shipping = $shipping == PAYPAL_BUTTON_SHIPPING_NULL ? '' : $shipping;
+  $element['shipping'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Shipping cost'),
+    '#description' => t('The cost of shipping this item to pass to PayPal, optional - defaults to zero'),
+    '#default_value' => $shipping,
+    '#size' => 6,
+    '#maxlength' => 6,
+    '#required' => FALSE,
+    );
+  if (variable_get('paypal_button_tax_option', FALSE)) {
+    $tax_rate = isset($items[$delta]['tax_rate']) ? $items[$delta]['tax_rate'] : '';
+    $tax_rate = $tax_rate == PAYPAL_BUTTON_TAX_RATE_NULL ? '' : $tax_rate;
+    dpm($tax_rate);
+    $element['tax_rate'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Tax rate (%)'),
+      '#description' => t('The % rate of tax to apply to this transaction - defaults to ' .
+        variable_get('paypal_button_default_tax_rate', PAYPALSIMPLECLASS_DEFAULT_TAX_RATE) .
+      '%'),
+      '#default_value' => $tax_rate,
+      '#size' => 6,
+      '#maxlength' => 6,
+      '#required' => FALSE,
+      );
+  }
+  $element['option_toggle'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Does this button have options?'),
+    '#description' => t('Tick this box to reveal the fields to add options'),
+    '#default_value' => isset($items[$delta]['option_toggle']) ? 
+      $items[$delta]['option_toggle'] : FALSE,
+    );
+  $element['option_label'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Options label'),
+    '#description' => t('If you offer options then you may add a label'),
+    '#size' => 60,
+    '#maxlength' => 60,
+    '#default_value' => isset($items[$delta]['option_label']) ?
+      $items[$delta]['option_label'] : '',
+    '#required' => FALSE,
+    '#states' => array(
+      'invisible' => array(
+        ':input[name="' . $option_toggle_fieldname . '"]' => array('unchecked' => TRUE,),
+        ),
+      'visible' => array(
+        ':input[name="' .$option_toggle_fieldname .'"]' => array('checked' => TRUE,),
+        ),
+      ),
+    );
+  for($option_delta = 0; $option_delta < 10; $option_delta++) {
+    $option_no = $option_delta + 1;
+    $element['option_' . $option_delta . '_text'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Option ' . $option_no),
+      '#description' => t('If you want options for this purchase' .
+        ' then key the option. You may have up to 10 options'),
+      '#default_value' => isset($items[$delta]['option_' . $option_delta . '_text'])
+        ? $items[$delta]['option_' . $option_delta . '_text'] : '',
+      '#size' => 127,
+      '#maxlength' => 127,
+      '#required' => FALSE,
+      '#states' => array(
+        'invisible' => array(
+          ':input[name="' . $option_toggle_fieldname . '"]' => array('unchecked' => TRUE,),
+          ),
+        'visible' => array(
+          ':input[name="' .$option_toggle_fieldname .'"]' => array('checked' => TRUE,),
+          ),
+        ),
+      );
+    $default_price = isset($items[$delta]['option_' . $option_delta . '_price']) ?
+      $items[$delta]['option_' . $option_delta . '_price'] : '';
+    $default_price = $default_price == PAYPAL_BUTTON_PRICE_NULL ? '' : $default_price;
+    $element['option_' . $option_delta . '_price'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Option ' . $option_no . ' price'),
+      '#description' => t('If you want options for this purchase and the' . 
+        ' price depends upon the option then key this price\'s option'),
+      '#size' => 6,
+      '#maxlength' => 6,
+      '#default_value' => $default_price,
+      '#required' => FALSE,
+      '#states' => array(
+        'invisible' => array(
+          ':input[name="' . $option_toggle_fieldname . '"]' => array('unchecked' => TRUE,),
+          ),
+        'visible' => array(
+          ':input[name="' .$option_toggle_fieldname .'"]' => array('checked' => TRUE,),
+          ),
+        ),
+      );
+  }
+  return $element;
+}
+
+/* Create a block with the PayPal View Cart button */
+
+/**
+ * Implement hook_block_info
+ */
+function paypal_button_block_info() {
+  $blocks['view_cart_button'] = array(
+    'info' => t('The PayPal view cart button'),
+    );
+  $blocks['paypal_logo'] = array(
+    'info' => t('The PayPal logo'),
+    );
+  return $blocks;
+}
+
+/**
+ * Implement hook_block_view
+ */
+function paypal_button_block_view($delta = '') {
+  switch ($delta) {
+    case 'view_cart_button':
+      if (variable_get('paypal_button_live_or_sandbox', PAYPAL_BUTTON_LIVE) == PAYPAL_BUTTON_SANDBOX) {
+        $paypal_button_action_url = 'https://www.sandbox.paypal.com/cgi-bin/webscr';
+        $paypal_button_account_email = variable_get('paypal_button_sandbox_paypal_email', '');
+      } else {
+        $paypal_button_action_url = 'https://www.paypal.com/cgi-bin/webscr';
+        $paypal_button_account_email = variable_get('paypal_button_live_paypal_email', '');
+      }
+      $block['content'] = array(
+        '#markup' => '<form target="paypal" action="' . $paypal_button_action_url .
+          '"' . 
+          'method="post">' . PHP_EOL .
+          '<input type="hidden" name="cpp_header_image"' .
+          'value="http://www.lesleycarver.co.uk/images/Logotype_paypal_enhanced.jpg">' . PHP_EOL .
+          '<input type="hidden" name="cmd" value="_cart">' . PHP_EOL .
+          '<input type="hidden" name="display" value="1">' . PHP_EOL .
+          '<input type="hidden" name="business" value="' . $paypal_button_account_email .
+          '">' . PHP_EOL .
+          '<input type="image"' .
+          'src="https://www.paypalobjects.com/en_GB/i/btn/btn_viewcart_LG.gif"' .
+          'border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">' . PHP_EOL .
+          '<img alt="" border="0" src="https://www.paypalobjects.com/en_GB/i/scr/pixel.gif"' .
+          'width="1" height="1">' . PHP_EOL .
+          '</form>' . PHP_EOL,
+        );
+      break;
+    case 'paypal_logo':
+      $block['content'] = array(
+        '#markup' => '<p><img alt="PayPal logo"' .
+         'src="https://www.paypal.com/en_GB/i/bnr/vertical_solution_PP.gif"' .
+         'title="All payments can be made with PayPal" /></p>',
+        );
+  }
+  return $block;
+}

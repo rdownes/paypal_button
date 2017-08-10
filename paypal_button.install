@@ -1,0 +1,187 @@
+<?php
+/**
+ * @file: defines the installation of this module
+ */
+
+ /**
+  * Implmenents hook_field_schema
+  *
+  * Define the PayPal buttom field
+  */
+function paypal_button_field_schema($field) {
+  $columns = array(
+    'button_label' => array(
+      'description' => t('The label to appear before the button, if required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'product_name' => array(
+      'description' => t('The description to add to the cart when this button is pressed'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => TRUE,
+      ),
+    'price' => array(
+      'description' => t('The price to add to the cart when this button is pressed'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'shipping' => array(
+      'description' => t('The shipping cost to add to the cart when this button is pressed'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'tax_rate' => array(
+      'description' => t('The tax rate to add to the cart when this button is pressed'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_toggle' => array(
+      'description' => t('TRUE if this PayPal button has options'),
+      'type' => 'int',
+      'size' => 'tiny',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      ),
+    'option_label' => array(
+      'description' => t('The label on screen for customer options for this purchase,'.
+        ' if needed'),
+      'type' => 'varchar',
+      'length' => 60,
+      'not null' => FALSE,
+      ),
+    'option_0_text' => array(
+      'description' => t('The text for option 1 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_0_price' => array(
+      'description' => t(
+        'The price for option 1 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_1_text' => array(
+      'description' => t('The text for option 2 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_1_price' => array(
+      'description' => t(
+        'The price for option 2 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_2_text' => array(
+      'description' => t('The text for option 3 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_2_price' => array(
+      'description' => t(
+        'The price for option 3 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_3_text' => array(
+      'description' => t('The text for option 4 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_3_price' => array(
+      'description' => t(
+        'The price for option 4 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_4_text' => array(
+      'description' => t('The text for option 5 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_4_price' => array(
+      'description' => t(
+        'The price for option 5 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_5_text' => array(
+      'description' => t('The text for option 6 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_5_price' => array(
+      'description' => t(
+        'The price for option 6 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_6_text' => array(
+      'description' => t('The text for option 7 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_6_price' => array(
+      'description' => t(
+        'The price for option 7 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_7_text' => array(
+      'description' => t('The text for option 8 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_7_price' => array(
+      'description' => t(
+        'The price for option 8 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_8_text' => array(
+      'description' => t('The text for option 9 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_8_price' => array(
+      'description' => t(
+        'The price for option 9 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+    'option_9_text' => array(
+      'description' => t('The text for option 10 (including price if relevent), if' . 
+        ' option required'),
+      'type' => 'varchar',
+      'length' => 127,
+      'not null' => FALSE,
+      ),
+    'option_9_price' => array(
+      'description' => t(
+        'The price for option 10 (if price varies and options required)'),
+      'type' => 'float',
+      'not null' => TRUE,
+      ),
+  );
+//dd($columns, "Columns");
+  return array('columns' => $columns,);
+}

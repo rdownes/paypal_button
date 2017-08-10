@@ -1,0 +1,10 @@
+name = PayPal Button
+description = Create's a PayPal field type that displays as a Add To Cart button based upon an updated version of the GoPayPal class library for this module
+package = Other
+core = 7.x
+configure = admin/config/services/PayPal
+dependencies[] = entity
+files[] = ./GoPayPal/GoPayPal.class.php
+files[] = ./PayPalSimple/PaypalSimpleClass.php
+files[] = ./PayPalSimple/ErrorHandlerClass.php
+

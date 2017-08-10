@@ -1,0 +1,19 @@
+/**
+ * Module: PayPal button
+ *
+ * Defines the default css styling for this module.
+ */
+
+ .item_opt1_name {
+  float: left;
+  display: inline;
+  padding-right: 1em;
+ }
+
+ .field-type-paypal-button {
+  padding-top: 1em;
+ }
+
+.item_opt1_select {
+  color: black;
+}
