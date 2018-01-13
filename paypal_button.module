@@ -477,7 +477,7 @@ function paypal_button_field_formatter_view($object_type, $object, $field, $inst
   PayPalSimpleClass::setDrawMode(PAYPAL_BUTTON_DIV_DRAWMODE);
   PayPalSimpleClass::setCurrency('GBP', '£');
 //  PayPalSimpleClass::setTaxRate(0.0);
-  PayPalSimpleClass::setTarget('paypal');
+  PayPalSimpleClass::setTarget('_top');
   PayPalSimpleClass::setErrorReporting(TRUE);
 //  $paypal->openInNewWindow = TRUE;
 //  $paypal->set(CURRENCY, 'GBP');
