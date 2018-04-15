@@ -57,7 +57,7 @@ function paypal_button_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('paypal_button_config_form'),
     'access arguments' => array('paypal_button_administer_paypal_button'),
-    'file' => 'includes\paypal_button.settings.inc',
+    'file' => 'includes/paypal_button.settings.inc',
     'type' => MENU_NORMAL_ITEM,
     );
 
