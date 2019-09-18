@@ -520,8 +520,13 @@ function paypal_button_field_formatter_view($object_type, $object, $field, $inst
     case 'paypal_button_paypal_button':
 
       foreach ($items as $delta => $item) {
-        $price = $item['price'] == PAYPAL_BUTTON_PRICE_NULL ? '0' : 
-          $item['price'];
+        //$price_override = $_GET['price'];
+        if (!isset($_GET['price']) ) {
+          $price = $item['price'] == PAYPAL_BUTTON_PRICE_NULL ? '0' : 
+            $item['price'];
+        } else {
+          $price = $_GET['price'];
+        }
         $shipping = $item['shipping'] == PAYPAL_BUTTON_SHIPPING_NULL ? '0' : 
           $item['shipping'];
         if ($tax_option) {
