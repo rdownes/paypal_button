@@ -1,13 +1,13 @@
 {
   "name": "drupal/paypal_button",
-  "description": "Paypal_Button is a field module for simple PayPal buttons"
+  "description": "Paypal_Button is a field module for simple PayPal buttons",
   "type": "drupal-module",
   "authors": [
     {
-      "name": "Rory Downes (rdownes)"
+      "name": "Rory Downes (rdownes)",
       "homepage": "https://www.drupal.org/u/rory-downes",
       "role": "Maintainer"
     }
-  ],
+  ]
 }
 
