@@ -7,10 +7,10 @@
       "name": "Rory Downes (rdownes)",
       "homepage": "https://www.drupal.org/u/rory-downes",
       "role": "Maintainer"
-    },
-    "require": {
-      "drupal/entity": "*",
     }
-  ]
+  ],
+  "require": {
+    "drupal/entity": "*"
+  }
 }
 
