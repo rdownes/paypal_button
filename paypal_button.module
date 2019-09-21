@@ -449,81 +449,81 @@ function paypal_button_field_formatter_info() {
  */
 function paypal_button_field_formatter_view($object_type, $object, $field, $instance, $langcode, $items, $display) {
 
-  global $base_root; // Drupal's host root name for URLs
-
-  $module_path = drupal_get_path('module' , 'paypal_button');
-  drupal_add_css($module_path . '/css/paypal_button.css');
-
-  $element = array();
-
-  // Set up basics of all PayPal add to Cart button forms
-//  PaypalSimpleClass::singleton("you@yourdomain.com","");
-  //$paypal = new GoPayPal(ADD_TO_CART);
-  if (variable_get('paypal_button_live_or_sandbox', PAYPAL_BUTTON_LIVE) == PAYPAL_BUTTON_SANDBOX) {
-      PaypalSimpleClass::singleton(variable_get('paypal_button_sandbox_paypal_email', ''),"");
-      PaypalSimpleClass::setSandbox(TRUE);
-//      PaypalSimpleClass::setActionUrl(PAYPAL_BUTTON_PAYPAL_SANDBOX_URL);
-//    $paypal->sandbox = TRUE;
-//    $paypal->set(PAYPAL_EMAIL, variable_get('paypal_button_sandbox_paypal_email', ''));
-  } else {
-      PaypalSimpleClass::singleton(variable_get('paypal_button_live_paypal_email', ''),"");
-      PaypalSimpleClass::setSandbox(FALSE);
-//      PaypalSimpleClass::setActionUrl(PAYPAL_BUTTON_PAYPAL_LIVE_URL);
-//    $paypal->sandbox = FALSE;
-//    $paypal->set(PAYPAL_EMAIL, variable_get('paypal_button_live_paypal_email', ''));
-  }
-//dd(PaypalSimpleClass, 'PayPalSimpleClass');
-  PayPalSimpleClass::setBtnSize(PAYPAL_BUTTON_SMALL_BUTTON);
-  PayPalSimpleClass::setDrawMode(PAYPAL_BUTTON_DIV_DRAWMODE);
-  PayPalSimpleClass::setCurrency('GBP', '£');
-//  PayPalSimpleClass::setTaxRate(0.0);
-  PayPalSimpleClass::setTarget('_top');
-  PayPalSimpleClass::setErrorReporting(TRUE);
-//  $paypal->openInNewWindow = TRUE;
-//  $paypal->set(CURRENCY, 'GBP');
-//  $paypal->set(COUNTRY, 'GB');
-  $payment_completion_url = $instance['widget']['settings']['payment_completion_url'];
-  if (empty($payment_completion_url)) {
-    $payment_completion_url = variable_get('paypal_button_default_payment_completion_url', 
-      PAYPAL_DEFAULT_COMPLETION_URL);
-  } elseif (trim($paypal_completion_url == '<front>')) {
-    $payment_completion_url = '/';
-  }
-  $payment_cancellation_url = $instance['widget']['settings']['payment_cancellation_url'];
-  if (empty($payment_cancellation_url)) {
-    $payment_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url',
-      PAYPAL_DEFAULT_CANCELLATION_URL);
-  } elseif (trim($payment_cancellation_url) == '<front>') {
-    $payment_cancellation_url = '/';
-  }
-  $payment_continue_url = $instance['widget']['settings']['continue_url'];
-  if (empty($payment_continue_url)) {
-    $payment_continue_url = variable_get('paypal_button_default_continue_url',
-      $_SERVER['REQUEST_URI']);
-    if (empty($payment_continue_url)) {
-      $payment_continue_url = $_SERVER['REQUEST_URI'];
-    } elseif (trim($payment_continue_url) == '<front>') {
-      $payment_continue_url = '/';
-    }
-  }
-  $payment_continue_url = url($payment_continue_url, array('absolute' => TRUE,));
-  PayPalSimpleClass::setShoppingUrl($payment_continue_url);
-  $payment_completion_url = url($payment_completion_url, array('absolute' => TRUE,));
-  PayPalSimpleClass::setReturnUrl($payment_completion_url);
-  $payment_cancellation_url = url($payment_cancellation_url, array('absolute' => TRUE,));
-  PayPalSimpleClass::setCancelUrl($payment_cancellation_url);
-  //$paypal->set(PAYMENT_COMPLETION_URL, $payment_completion_url);
-  //$paypal->set(PAYMENT_CANCELLED_URL, $payment_cancellation_url);
-  //$paypal->set(CONTINUE_SHOPPING_URL, $payment_continue_url); 
-  PayPalSimpleClass::textValue('Add any special instructions');
-  //$paypal->set(PROMPT_FOR_NOTE, NOTE_REQUESTED);
-  //$paypal->set(NOTE_LABEL, t('Add any special instructions'));
-  //$paypal->set(RETURN_BUTTON_LABEL, 'Return to our site'); # caption override for "Return to Merchant" button
-  $default_tax_rate = variable_get('paypal_button_default_tax_rate', PAYPALSIMPLECLASS_DEFAULT_TAX_RATE);
-  $tax_option = variable_get('paypal_button_tax_option', FALSE);
-
   switch ($display['type']) {
     case 'paypal_button_paypal_button':
+
+      global $base_root; // Drupal's host root name for URLs
+
+      $module_path = drupal_get_path('module' , 'paypal_button');
+      drupal_add_css($module_path . '/css/paypal_button.css');
+
+      $element = array();
+
+      // Set up basics of all PayPal add to Cart button forms
+    //  PaypalSimpleClass::singleton("you@yourdomain.com","");
+      //$paypal = new GoPayPal(ADD_TO_CART);
+      if (variable_get('paypal_button_live_or_sandbox', PAYPAL_BUTTON_LIVE) == PAYPAL_BUTTON_SANDBOX) {
+          PaypalSimpleClass::singleton(variable_get('paypal_button_sandbox_paypal_email', ''),"");
+          PaypalSimpleClass::setSandbox(TRUE);
+    //      PaypalSimpleClass::setActionUrl(PAYPAL_BUTTON_PAYPAL_SANDBOX_URL);
+    //    $paypal->sandbox = TRUE;
+    //    $paypal->set(PAYPAL_EMAIL, variable_get('paypal_button_sandbox_paypal_email', ''));
+      } else {
+          PaypalSimpleClass::singleton(variable_get('paypal_button_live_paypal_email', ''),"");
+          PaypalSimpleClass::setSandbox(FALSE);
+    //      PaypalSimpleClass::setActionUrl(PAYPAL_BUTTON_PAYPAL_LIVE_URL);
+    //    $paypal->sandbox = FALSE;
+    //    $paypal->set(PAYPAL_EMAIL, variable_get('paypal_button_live_paypal_email', ''));
+      }
+    //dd(PaypalSimpleClass, 'PayPalSimpleClass');
+      PayPalSimpleClass::setBtnSize(PAYPAL_BUTTON_SMALL_BUTTON);
+      PayPalSimpleClass::setDrawMode(PAYPAL_BUTTON_DIV_DRAWMODE);
+      PayPalSimpleClass::setCurrency('GBP', '£');
+    //  PayPalSimpleClass::setTaxRate(0.0);
+      PayPalSimpleClass::setTarget('_top');
+      PayPalSimpleClass::setErrorReporting(TRUE);
+    //  $paypal->openInNewWindow = TRUE;
+    //  $paypal->set(CURRENCY, 'GBP');
+    //  $paypal->set(COUNTRY, 'GB');
+      $payment_completion_url = $instance['widget']['settings']['payment_completion_url'];
+      if (empty($payment_completion_url)) {
+        $payment_completion_url = variable_get('paypal_button_default_payment_completion_url', 
+          PAYPAL_DEFAULT_COMPLETION_URL);
+      } elseif (trim($paypal_completion_url == '<front>')) {
+        $payment_completion_url = '/';
+      }
+      $payment_cancellation_url = $instance['widget']['settings']['payment_cancellation_url'];
+      if (empty($payment_cancellation_url)) {
+        $payment_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url',
+          PAYPAL_DEFAULT_CANCELLATION_URL);
+      } elseif (trim($payment_cancellation_url) == '<front>') {
+        $payment_cancellation_url = '/';
+      }
+      $payment_continue_url = $instance['widget']['settings']['continue_url'];
+      if (empty($payment_continue_url)) {
+        $payment_continue_url = variable_get('paypal_button_default_continue_url',
+          $_SERVER['REQUEST_URI']);
+        if (empty($payment_continue_url)) {
+          $payment_continue_url = $_SERVER['REQUEST_URI'];
+        } elseif (trim($payment_continue_url) == '<front>') {
+          $payment_continue_url = '/';
+        }
+      }
+      $payment_continue_url = url($payment_continue_url, array('absolute' => TRUE,));
+      PayPalSimpleClass::setShoppingUrl($payment_continue_url);
+      $payment_completion_url = url($payment_completion_url, array('absolute' => TRUE,));
+      PayPalSimpleClass::setReturnUrl($payment_completion_url);
+      $payment_cancellation_url = url($payment_cancellation_url, array('absolute' => TRUE,));
+      PayPalSimpleClass::setCancelUrl($payment_cancellation_url);
+      //$paypal->set(PAYMENT_COMPLETION_URL, $payment_completion_url);
+      //$paypal->set(PAYMENT_CANCELLED_URL, $payment_cancellation_url);
+      //$paypal->set(CONTINUE_SHOPPING_URL, $payment_continue_url); 
+      PayPalSimpleClass::textValue('Add any special instructions');
+      //$paypal->set(PROMPT_FOR_NOTE, NOTE_REQUESTED);
+      //$paypal->set(NOTE_LABEL, t('Add any special instructions'));
+      //$paypal->set(RETURN_BUTTON_LABEL, 'Return to our site'); # caption override for "Return to Merchant" button
+      $default_tax_rate = variable_get('paypal_button_default_tax_rate', PAYPALSIMPLECLASS_DEFAULT_TAX_RATE);
+      $tax_option = variable_get('paypal_button_tax_option', FALSE);
 
       foreach ($items as $delta => $item) {
         //$price_override = $_GET['price'];
