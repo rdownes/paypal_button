@@ -486,11 +486,15 @@ function paypal_button_field_formatter_view($object_type, $object, $field, $inst
   if (empty($payment_completion_url)) {
     $payment_completion_url = variable_get('paypal_button_default_payment_completion_url', 
       PAYPAL_DEFAULT_COMPLETION_URL);
+  } elseif (trim($paypal_completion_url == '<front>')) {
+    $payment_completion_url = '/';
   }
   $payment_cancellation_url = $instance['widget']['settings']['payment_cancellation_url'];
   if (empty($payment_cancellation_url)) {
     $payment_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url',
       PAYPAL_DEFAULT_CANCELLATION_URL);
+  } elseif (trim($payment_cancellation_url) == '<front>') {
+    $payment_cancellation_url = '/';
   }
   $payment_continue_url = $instance['widget']['settings']['continue_url'];
   if (empty($payment_continue_url)) {
@@ -498,6 +502,8 @@ function paypal_button_field_formatter_view($object_type, $object, $field, $inst
       $_SERVER['REQUEST_URI']);
     if (empty($payment_continue_url)) {
       $payment_continue_url = $_SERVER['REQUEST_URI'];
+    } elseif (trim($payment_continue_url) == '<front>') {
+      $payment_continue_url = '/';
     }
   }
   $payment_continue_url = url($payment_continue_url, array('absolute' => TRUE,));
