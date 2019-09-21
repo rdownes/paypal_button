@@ -607,9 +607,12 @@ function paypal_button_field_widget_settings_form($field, $instance) {
   $widget = $instance['widget'];
   $settings = $widget['settings'];
 
-  $site_default_completion_url = variable_get('paypal_button_default_payment_completion_url', '');
-  if (empty($site_default_completion_url)) {
-    $site_default_completion_url = PAYPAL_DEFAULT_COMPLETION_URL;
+  $site_default_completion_url = variable_get('paypal_button_default_payment_completion_url', PAYPAL_DEFAULT_COMPLETION_URL);
+  //if (empty($site_default_completion_url)) {
+  //  $site_default_completion_url = PAYPAL_DEFAULT_COMPLETION_URL;
+  //} else
+  if ($site_default_completion_url == '<front>') {
+    $site_default_completion_url = '/';
   }
   $form['payment_completion_url'] = array(
     '#type' => 'textfield',
@@ -619,9 +622,12 @@ function paypal_button_field_widget_settings_form($field, $instance) {
     '#default_value' => $settings['payment_completion_url'],
     '#required' => FALSE,
   );
-  $site_default_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url', '');
-  if (empty($site_default_cancellation_url)) {
-    $site_default_cancellation_url = PAYPAL_DEFAULT_CANCELLATION_URL;
+  $site_default_cancellation_url = variable_get('paypal_button_default_payment_cancellation_url', PAYPAL_DEFAULT_CANCELLATION_URL);
+  //if (empty($site_default_cancellation_url)) {
+  //  $site_default_cancellation_url = ;
+  //}
+  if ($site_default_cancellation_url == '<front>'){
+    $site_default_cancellation_url = '/';
   }
   $form['payment_cancellation_url'] = array(
     '#type' => 'textfield',
@@ -651,8 +657,17 @@ function paypal_button_field_widget_settings_form($field, $instance) {
  */
 function paypal_button_field_widget_settings_form_validate($form, &$form_state) {
   $payment_completion_url = $form_state['values']['payment_completion_url'];
+  if ($payment_completion_url == '<front>') {
+    $payment_completion_url = '/';
+  }
   $payment_cancellation_url = $form_state['values']['payment_cancellation_url'];
+  if ($payment_cancellation_url == '<front>') {
+    $payment_cancellation_url = '/';
+  }
   $continue_url = $form_state['values']['continue_url'];
+  if ($continue_url == '<front>') {
+    $continue_url = '/';
+  }
 
   if (!validate_url($payment_completion_url)) {
     form_set_error('payment_completion_url', t('The \'Payment Completion\' URL is not valid'));

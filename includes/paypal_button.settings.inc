@@ -31,7 +31,8 @@ function paypal_button_config_form($form, $form_state) {
   $form['paypal_button_default_payment_completion_url'] = array(
     '#type' => 'textfield',
     '#title' => t('The site\'s default URL for payment completion'),
-    '#default_value' => variable_get('paypal_button_default_payment_completion_url', ''),
+    '#description' => t('Relative to the site root. Enter \'/\' for the front page'),
+    '#default_value' => variable_get('paypal_button_default_payment_completion_url', PAYPAL_DEFAULT_COMPLETION_URL),
     '#size' => 256,
     '#maxlength' => 256,
     '#required' => TRUE,
@@ -39,7 +40,8 @@ function paypal_button_config_form($form, $form_state) {
   $form['paypal_button_default_payment_cancellation_url'] = array(
     '#type' => 'textfield',
     '#title' => t('The site\'s default URL for payment cancellation'),
-    '#default_value' => variable_get('paypal_button_default_payment_cancellation_url', ''),
+    '#description' => t('Relative to the site root. Enter \'/\' for the front page'),
+    '#default_value' => variable_get('paypal_button_default_payment_cancellation_url', PAYPAL_DEFAULT_CANCELLATION_URL),
     '#size' => 256,
     '#maxlength' => 256,
     '#required' => TRUE,
@@ -47,6 +49,7 @@ function paypal_button_config_form($form, $form_state) {
   $form['paypal_button_default_continue_url'] = array(
     '#type' => 'textfield',
     '#title' => t('The site\'s default URL to continue shopping - if blank then return to current page'),
+    '#description' => t('Relative to the site root. Enter \'/\' for the front page'),
     '#default_value' => variable_get('paypal_button_default_continue_url',''),
     '#size' => 256,
     '#maxlength' => 256,
@@ -111,13 +114,22 @@ function paypal_button_config_form_validate($form, &$form_state) {
   if ($sandbox_email != '' && !valid_email_address(trim($sandbox_email))) {
     form_set_error('paypal_button_sandbox_paypal_email', t('Please enter a valid email address for the sandbox PayPal account'));
   }
+  if (trim($payment_completion_url) == '<front>') {
+    $payment_completion_url = '/';
+  }
   if (!valid_url(trim($payment_completion_url))) {
     form_set_error('paypal_button_default_payment_completion_url',
       t('Please enter a valid payment completion URL'));
   }
+  if (trim($payment_cancellation_url) == '<front>') {
+    $payment_cancellation_url = '/';
+  }
   if (!valid_url(trim($payment_cancellation_url))) {
     form_set_error('paypal_button_default_payment_cancellation_url',
       t('Please enter a valid payment cancellation URL'));
+  }
+  if (trim($continue_url) == '<front>') {
+    $continue_url = '/';
   }
   if (!empty($continue_url) && !valid_url(trim($continue_url))) {
     form_set_error('paypal_button_default_continue_url',
