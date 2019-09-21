@@ -110,7 +110,7 @@ function paypal_button_field_info() {
       'label' => t('PayPal button'),
       'description' => t('This form defines a PayPal button'),
       'default_widget' => 'paypal_button_paypal_button',
-      'default formatter' => 'paypal_button_paypal_button',
+      'default_formatter' => 'paypal_button_paypal_button',
       'settings' => array(),
       'instance settings' => array(),
       ),
